@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Asistente Chat</title>
+<meta name="theme-color" content="#18161f">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Asistente">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#18161f;--card:#26222f;--fg:#f0eff5;--mut:#a39fb3;--pink:#ff5c93;--ok:#7bffb0;--err:#ff7b7b}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:calc(env(safe-area-inset-top) + 8px) 10px calc(env(safe-area-inset-bottom) + 10px)}
+header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+header b{color:var(--pink);font-size:15px;flex:1}
+button{font:inherit;border:0;border-radius:10px;cursor:pointer}
+.ib{background:var(--card);color:var(--fg);padding:7px 10px}
+textarea,input,select{width:100%;font:inherit;font-size:16px;background:var(--card);color:var(--fg);border:1px solid #3a3446;border-radius:10px;padding:8px 10px}
+textarea{resize:none;height:62px}
+.row{display:flex;gap:6px;margin-top:6px}
+.row>*{flex:1}
+.pri{background:var(--pink);color:#18161f;font-weight:700;padding:9px}
+.tr{margin:8px 0 2px;color:var(--fg)}
+.tr small{color:var(--pink);font-weight:700}
+.chips{display:flex;gap:5px;margin:8px -10px;padding:0 10px;overflow-x:auto;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;background:var(--card);color:var(--c);font-weight:700;padding:8px 13px;font-size:13px;border-radius:18px}
+.chip.on{background:var(--c);color:#18161f}
+.card{background:var(--card);border-radius:12px;padding:9px 11px;margin:6px 0;border:1px solid transparent;position:relative}
+.card:active{border-color:var(--pink)}
+.card .en{font-size:15px;padding-right:22px}
+.card .es{color:var(--mut);font-size:12.5px;margin-top:3px}
+.card .tag{color:var(--mut);font-size:11px;margin-bottom:2px}
+.card .star{position:absolute;right:8px;top:6px;background:none;color:#ffd166;font-size:17px;padding:2px}
+.mut{color:var(--mut);font-size:12.5px}
+.err{color:var(--err)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 18px);transform:translateX(-50%);background:var(--ok);color:#18161f;font-weight:700;padding:8px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+hr{border:0;border-top:1px solid #322d3d;margin:10px 0}
+.hide{display:none}
+.tabs{display:flex;background:var(--card);border-radius:12px;padding:3px;margin-bottom:8px}
+.tab{flex:1;background:none;color:var(--mut);padding:7px;font-weight:700}
+.tab.on{background:var(--pink);color:#18161f}
+label{display:block;margin:10px 0 4px;color:var(--mut);font-size:12.5px}
+.mic.rec{background:var(--err);color:#18161f}
+a{color:var(--pink)}
+</style>
+</head>
+<body>
+
+<section id="setup" class="hide">
+  <header><b>✦ Asistente Chat · configuración</b></header>
+  <p class="mut">Esta información se guarda solo en este celular.</p>
+  <label>Tu clave de Groq (empieza con gsk_)</label>
+  <input id="key" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_...">
+  <label>Cómo eres (opcional, para que las respuestas suenen a ti)</label>
+  <textarea id="persona" style="height:70px"></textarea>
+  <label>Idioma por defecto de tus clientes</label>
+  <select id="deflang"></select>
+  <div class="row"><button class="pri" id="save">Guardar</button></div>
+  <p class="mut">La clave se crea gratis en <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>.</p>
+</section>
+
+<section id="main" class="hide">
+  <header><b>✦ Asistente</b><button class="ib" id="cfg" aria-label="Configuración">⚙</button></header>
+  <div class="tabs"><button class="tab on" id="t-resp">💬 Responder</button><button class="tab" id="t-esc">✍️ Escribir</button></div>
+  <div class="chips" id="chips"></div>
+  <div id="p-resp">
+  <textarea id="msg" placeholder="Mensaje del cliente (pega aquí)"></textarea>
+  <div class="row">
+    <button class="ib" id="paste">📋 Pegar y traducir</button>
+    <button class="pri" id="go" style="flex:.6">Traducir</button>
+  </div>
+  <div id="trans" class="tr"></div>
+  <div id="sugg"></div>
+  </div>
+  <div id="p-esc" class="hide">
+  <div class="mut">Escribe en español → se traduce a
+    <select id="lang" style="width:auto;padding:3px 6px;font-size:13px;color:var(--pink)"></select></div>
+  <div class="row">
+    <textarea id="mine" placeholder="Lo que quieres decirle…" style="height:70px;flex:4"></textarea>
+    <button class="ib mic" id="mic" style="flex:.8;font-size:18px">🎤</button>
+  </div>
+  <div class="row"><button class="pri" id="write">Traducir lo mío ➜</button></div>
+  <div id="out"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast">Copiado ✓</div>
+
+<script src="prompts.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const LANGS = ["inglés","portugués","francés","italiano","alemán","neerlandés","ruso","japonés","árabe"];
+const COLORS = ["#ff5c93","#ffb35c","#b18cff","#5ce1c4","#7bd96b","#ff6b6b"];
+const API = "https://api.groq.com/openai/v1";
+const MODEL = "openai/gpt-oss-120b", FALLBACK = "openai/gpt-oss-20b";
+let fallbackUntil = 0, style = null, msgText = "", seen = [], req = 0;
+
+// ---------- almacenamiento local (solo en este celular) ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const cfg = () => store.get("cfg", {});
+let cache = store.get("cache", {}), favs = store.get("favs", {});
+const norm = t => t.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, "").replace(/\s+/g, " ").trim();
+
+// ---------- IA ----------
+async function call(model, system, user, temperature) {
+  const r = await fetch(API + "/chat/completions", {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + cfg().key, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, temperature, max_tokens: 900, reasoning_effort: "low",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }] })
+  });
+  if (!r.ok) { const e = new Error(await r.text()); e.status = r.status; throw e; }
+  const raw = (await r.json()).choices[0].message.content || "";
+  return JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+}
+async function ask(system, user, temperature = 0.9) {
+  const model = Date.now() < fallbackUntil ? FALLBACK : MODEL;
+  try { return await call(model, system, user, temperature); }
+  catch (e) {
+    if (e.status !== 429 || model === FALLBACK) throw e;
+    fallbackUntil = Date.now() + 120000;          // límite: pasa al modelo pequeño un rato
+    return await call(FALLBACK, system, user, temperature);
+  }
+}
+function friendly(e) {
+  if (e.status === 401) return "La clave de Groq no es válida. Revísala en ⚙.";
+  if (e.status === 429) return "Límite de uso de Groq alcanzado. Espera unos minutos.";
+  if (!navigator.onLine) return "Sin internet.";
+  return "Error: " + String(e.message || e).slice(0, 160);
+}
+const stylePrompt = () => PROMPTS.STYLE.replace("{{PERSONA}}", cfg().persona || PROMPTS.PERSONA);
+const isEs = l => /^(es|spa|cast)/i.test((l || "").trim());
+
+// ---------- copiar ----------
+let toastT;
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+  const el = $("toast"); el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 1200);
+}
+function card(en, es, tag, onStar, starred) {
+  const d = document.createElement("div"); d.className = "card";
+  d.innerHTML = (tag ? `<div class="tag"></div>` : "") + `<div class="en"></div>` + (es ? `<div class="es"></div>` : "");
+  if (tag) d.querySelector(".tag").textContent = tag;
+  d.querySelector(".en").textContent = en;
+  if (es) d.querySelector(".es").textContent = "(ES) " + es;
+  d.onclick = () => copy(en);
+  if (onStar) {
+    const s = document.createElement("button"); s.className = "star"; s.textContent = starred ? "★" : "☆";
+    s.onclick = ev => { ev.stopPropagation(); s.textContent = onStar() ? "★" : "☆"; };
+    d.appendChild(s);
+  }
+  return d;
+}
+const info = (el, text, cls = "mut") => { el.innerHTML = ""; const p = document.createElement("div"); p.className = cls; p.textContent = text; el.appendChild(p); };
+
+// ---------- traducir el mensaje del cliente ----------
+async function translate(text) {
+  text = text.trim(); if (!text) return;
+  msgText = text; seen = []; const id = ++req;
+  $("msg").value = text;
+  info($("trans"), "Traduciendo…");
+  if (style) suggest(); else info($("sugg"), "Elige el tipo de respuesta");
+  const k = norm(text);
+  try {
+    const d = cache[k] || await ask(PROMPTS.TRANSLATE, text, 0.2);
+    if (id !== req) return;
+    if (d.traduccion) { cache[k] = d; store.set("cache", cache); }
+    $("trans").innerHTML = ""; const s = document.createElement("small"); s.textContent = `[${d.idioma}] `;
+    $("trans").append(s, d.traduccion || "");
+    if (d.idioma && !isEs(d.idioma)) setLang(d.idioma);
+  } catch (e) { if (id === req) info($("trans"), friendly(e), "err"); }
+}
+
+// ---------- estilos y sugerencias ----------
+function chips() {
+  const box = $("chips"); box.innerHTML = "";
+  Object.keys(PROMPTS.STYLES).forEach((name, i) => {
+    const b = document.createElement("button"); b.className = "chip" + (name === style ? " on" : "");
+    b.style.setProperty("--c", COLORS[i % COLORS.length]); b.textContent = name;
+    b.onclick = () => { if (style === name && msgText && store.get("tab", "resp") === "resp") { suggest(true); return; } style = name; store.set("style", name); chips();
+      if (store.get("tab", "resp") === "esc") { if ($("mine").value.trim()) writeOut(); } else if (msgText) suggest(); };
+    box.appendChild(b);
+  });
+}
+async function suggest(more = false) {
+  if (!msgText) return info($("sugg"), "Primero pega el mensaje del cliente.");
+  const id = req, st = style, box = $("sugg");
+  const fk = norm(msgText) + "|" + st;
+  if (!more && favs[fk]?.length) return renderOpts(favs[fk].map(f => ({ respuesta: f[0], en_espanol: f[1] })), st, true);
+  info(box, "Pensando respuestas " + st + "…");
+  let q = `Mensaje del cliente:\n${msgText}\n\nEstilo: ${st} → ${PROMPTS.STYLES[st]}`;
+  if (seen.length) q += "\n\nNo repitas ni parafrasees estas que ya vio:\n- " + seen.join("\n- ");
+  try {
+    const d = await ask(stylePrompt(), q);
+    if (id !== req || st !== style) return;
+    const opts = d.opciones || [];
+    if (!isEs(d.idioma)) await fillEs(opts, "respuesta", "en_espanol");
+    if (id !== req || st !== style) return;
+    renderOpts(opts, st, false);
+  } catch (e) { if (id === req) info(box, friendly(e), "err"); }
+}
+// a veces el modelo no trae la traducción al español: se pide aparte (para que ella sepa qué envía)
+async function fillEs(items, src, dst) {
+  const miss = items.filter(o => o[src] && (!(o[dst] || "").trim() || o[dst].trim() === o[src].trim()));
+  if (!miss.length) return;
+  try {
+    const d = await ask('Traduce al español cada texto de la lista, en el mismo orden, conservando los emojis. Devuelve SOLO JSON: {"es": ["...", "..."]}',
+                        JSON.stringify(miss.map(o => o[src])), 0.2);
+    miss.forEach((o, i) => { if (d.es?.[i]) o[dst] = d.es[i]; });
+  } catch {}
+}
+function renderOpts(opts, st, fromFavs) {
+  const box = $("sugg"); box.innerHTML = "";
+  if (fromFavs) info(box, "⭐ Tus favoritas para este mensaje");
+  const fk = norm(msgText) + "|" + st;
+  opts.forEach((o, i) => {
+    seen.push(o.respuesta);
+    box.appendChild(card(o.respuesta, o.en_espanol, `${i + 1} · ${st}`, () => toggleFav(fk, o), (favs[fk] || []).some(f => f[0] === o.respuesta)));
+  });
+  const more = document.createElement("button"); more.className = "ib"; more.style.marginTop = "2px";
+  more.textContent = fromFavs ? "✨ Nuevas de la IA" : "↻ Otras 2";
+  more.onclick = () => suggest(true); box.appendChild(more);
+}
+function toggleFav(fk, o) {
+  const list = favs[fk] || [], i = list.findIndex(f => f[0] === o.respuesta);
+  if (i >= 0) list.splice(i, 1); else list.push([o.respuesta, o.en_espanol || ""]);
+  favs[fk] = list; store.set("favs", favs); return i < 0;
+}
+
+// ---------- escribir en español ----------
+function setLang(l) {
+  const sel = $("lang"); if (![...sel.options].some(o => o.value === l)) sel.add(new Option(l, l), 0);
+  sel.value = l; store.set("lang", l);
+}
+async function writeOut() {
+  const mine = $("mine").value.trim(); if (!mine) return;
+  const out = $("out"), lang = $("lang").value; info(out, "Traduciendo lo tuyo…");
+  let q = `Idioma de destino: ${lang}\n\nLo que ella quiere decir:\n${mine}`;
+  if (style) q += `\n\nESTILO: ${style} → ${PROMPTS.STYLES[style]}`;
+  if (msgText) q += `\n\nMensaje del cliente (para imitar su tono):\n${msgText}`;
+  try {
+    const d = await ask(PROMPTS.WRITE, q, 0.8);
+    if (!isEs(lang)) { const it = [{ a: d.tal_cual, b: d.tal_cual_es }, { a: d.estilo, b: d.estilo_es }]; await fillEs(it, "a", "b"); d.tal_cual_es = it[0].b; d.estilo_es = it[1].b; }
+    out.innerHTML = "";
+    out.appendChild(card(d.tal_cual, d.tal_cual_es, "1 · Tal cual (tu voz)"));
+    out.appendChild(card(d.estilo, d.estilo_es, "2 · " + (style || "Pícara")));
+  } catch (e) { info(out, friendly(e), "err"); }
+}
+
+// ---------- dictado (voz → texto con Groq) ----------
+let rec, chunks = [];
+async function mic() {
+  const b = $("mic");
+  if (rec && rec.state === "recording") { rec.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = []; rec = new MediaRecorder(stream);
+    rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop()); b.classList.remove("rec"); b.textContent = "🎤";
+      const type = rec.mimeType || "audio/webm", ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+      const fd = new FormData(); fd.append("file", new Blob(chunks, { type }), "voz." + ext);
+      fd.append("model", "whisper-large-v3-turbo"); fd.append("language", "es");
+      info($("out"), "Pasando tu voz a texto…");
+      try {
+        const r = await fetch(API + "/audio/transcriptions", { method: "POST", headers: { "Authorization": "Bearer " + cfg().key }, body: fd });
+        if (!r.ok) { const e = new Error(await r.text()); e.status = r.status; throw e; }
+        const t = (await r.json()).text.trim();
+        $("mine").value = ($("mine").value + " " + t).trim(); info($("out"), "Revisa el texto y pulsa Traducir lo mío");
+      } catch (e) { info($("out"), friendly(e), "err"); }
+    };
+    rec.start(); b.classList.add("rec"); b.textContent = "⏹";
+    info($("out"), "🎤 Grabando… pulsa ⏹ al terminar", "err");
+    setTimeout(() => rec.state === "recording" && rec.stop(), 60000);
+  } catch (e) { info($("out"), "No pude usar el micrófono: " + e.message, "err"); }
+}
+
+// ---------- pantallas ----------
+function showSetup() {
+  const c = cfg(); $("key").value = c.key || ""; $("persona").value = c.persona || "";
+  const sel = $("deflang"); sel.innerHTML = ""; LANGS.forEach(l => sel.add(new Option(l, l))); sel.value = c.deflang || "inglés";
+  $("setup").classList.remove("hide"); $("main").classList.add("hide");
+}
+function showMain() {
+  $("setup").classList.add("hide"); $("main").classList.remove("hide");
+  const sel = $("lang"); sel.innerHTML = ""; LANGS.forEach(l => sel.add(new Option(l, l)));
+  setLang(store.get("lang", cfg().deflang || "inglés"));
+  style = store.get("style", null); chips();
+  // texto compartido desde Fansly (Android: Compartir → Asistente; iPhone: Atajo)
+  const p = new URLSearchParams(location.search), shared = (p.get("texto") || p.get("titulo") || "").trim();
+  tab(shared ? "resp" : store.get("tab", "resp"));
+  if (shared) { history.replaceState(null, "", location.pathname); translate(shared); }
+}
+$("save").onclick = () => {
+  const key = $("key").value.trim();
+  if (!key.startsWith("gsk_")) { alert("La clave de Groq empieza con gsk_"); return; }
+  store.set("cfg", { key, persona: $("persona").value.trim(), deflang: $("deflang").value }); showMain();
+};
+$("cfg").onclick = showSetup;
+$("go").onclick = () => translate($("msg").value);
+$("paste").onclick = async () => {
+  try { const t = await navigator.clipboard.readText(); if (t.trim()) translate(t); else info($("trans"), "El portapapeles está vacío.", "err"); }
+  catch { $("msg").focus(); info($("trans"), "Mantén presionado el cuadro y elige Pegar.", "err"); }
+};
+$("msg").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); translate($("msg").value); } });
+$("mine").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); writeOut(); } });
+$("write").onclick = writeOut;
+function tab(name) {
+  $("t-resp").classList.toggle("on", name === "resp"); $("t-esc").classList.toggle("on", name === "esc");
+  $("p-resp").classList.toggle("hide", name !== "resp"); $("p-esc").classList.toggle("hide", name !== "esc");
+  store.set("tab", name);
+}
+$("t-resp").onclick = () => tab("resp");
+$("t-esc").onclick = () => { tab("esc"); $("mine").focus(); };
+$("mic").onclick = mic;
+$("lang").onchange = e => store.set("lang", e.target.value);
+cfg().key ? showMain() : showSetup();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
